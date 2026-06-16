@@ -198,6 +198,15 @@ pub struct Track {
     pub gain: f32,
     /// Pan position in `[-1, 1]` (`-1` left, `0` center, `1` right).
     pub pan: f32,
+    /// Whether the track is muted: it stays silent in the mix. Defaulted so
+    /// projects saved before mute/solo existed still load.
+    #[serde(default)]
+    pub muted: bool,
+    /// Whether the track is soloed. When *any* track in the project is soloed,
+    /// only soloed tracks are heard (see [`Project::build_graph`]). Defaulted for
+    /// backward compatibility.
+    #[serde(default)]
+    pub soloed: bool,
     pub clips: Vec<ClipData>,
 }
 
@@ -208,6 +217,8 @@ impl Track {
             name: name.into(),
             gain: 1.0,
             pan: 0.0,
+            muted: false,
+            soloed: false,
             clips: Vec::new(),
         }
     }
@@ -221,6 +232,19 @@ impl Track {
     /// Builder: set the track's pan position.
     pub fn with_pan(mut self, pan: f32) -> Self {
         self.pan = pan;
+        self
+    }
+
+    /// Builder: mute the track (silenced in the mix).
+    pub fn with_mute(mut self, muted: bool) -> Self {
+        self.muted = muted;
+        self
+    }
+
+    /// Builder: solo the track. While any track is soloed, only soloed tracks
+    /// sound.
+    pub fn with_solo(mut self, soloed: bool) -> Self {
+        self.soloed = soloed;
         self
     }
 
@@ -415,6 +439,11 @@ impl Project {
         let master = graph.add(Box::new(Gain::new(self.master_gain)));
         graph.set_master(master);
 
+        // Solo is relative to the whole project: once any track is soloed, the
+        // non-soloed ones fall silent. A track is therefore audible only if it
+        // isn't muted and (nothing is soloed, or it is one of the soloed).
+        let any_soloed = self.tracks.iter().any(|t| t.soloed);
+
         // The channel-strip node per track, in track order, so automation lanes
         // can address a track by its index.
         let mut strips: Vec<NodeId> = Vec::with_capacity(self.tracks.len());
@@ -426,8 +455,11 @@ impl Project {
                 }
             }
 
+            let silenced = track.muted || (any_soloed && !track.soloed);
             let tl = graph.add(Box::new(timeline));
-            let strip = graph.add(Box::new(Channel::new(track.gain, track.pan)));
+            let strip = graph.add(Box::new(
+                Channel::new(track.gain, track.pan).muted(silenced),
+            ));
             graph.connect(tl, strip);
             graph.connect(strip, master);
             strips.push(strip);

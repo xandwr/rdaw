@@ -100,7 +100,7 @@ impl Graph {
         self.input_bus = AudioBuffer::new(self.channels, max_block);
         self.recompute_order();
         for node in &mut self.nodes {
-            node.prepare(sample_rate, max_block);
+            node.prepare(sample_rate, max_block, self.channels);
         }
     }
 

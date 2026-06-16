@@ -265,7 +265,7 @@ impl Timeline {
 }
 
 impl AudioNode for Timeline {
-    fn prepare(&mut self, _sample_rate: f64, _max_block: usize) {}
+    fn prepare(&mut self, _sample_rate: f64, _max_block: usize, _channels: usize) {}
 
     fn process(&mut self, ctx: &ProcessContext, _input: &AudioBuffer, output: &mut AudioBuffer) {
         let frames = ctx.frames;
