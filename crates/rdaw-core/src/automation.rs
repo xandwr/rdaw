@@ -2,7 +2,7 @@
 //! transport plays.
 //!
 //! So far a parameter only changes through a one-shot
-//! [`set_param`](crate::node::AudioNode::set_param) — fine for "turn this knob
+//! [`set_param`](crate::node::AudioNode::set_param): fine for "turn this knob
 //! now", useless for "ride the master fader down across the last bar". An
 //! [`Envelope`] closes that gap: a sorted list of breakpoints in timeline frames
 //! that the [`Graph`](crate::graph::Graph) samples each block and feeds into the

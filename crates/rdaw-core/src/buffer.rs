@@ -3,7 +3,7 @@ use crate::Sample;
 /// A planar, fixed-capacity audio buffer: `channels` blocks of `capacity`
 /// samples laid out contiguously as `[ch0 frame0..N][ch1 frame0..N]...`.
 ///
-/// Planar (rather than interleaved) keeps per-channel DSP simple — a node gets
+/// Planar (rather than interleaved) keeps per-channel DSP simple: a node gets
 /// a plain `&mut [Sample]` slice per channel. The host interleaves only once,
 /// at the boundary with the device.
 pub struct AudioBuffer {
@@ -13,7 +13,7 @@ pub struct AudioBuffer {
 }
 
 impl AudioBuffer {
-    /// Allocate a buffer. Call this off the real-time thread — it allocates.
+    /// Allocate a buffer. Call this off the real-time thread: it allocates.
     pub fn new(channels: usize, capacity: usize) -> Self {
         Self {
             channels,

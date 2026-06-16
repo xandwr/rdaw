@@ -114,7 +114,7 @@ impl AudioNode for Gain {
 /// mono bus gets gain alone, and any channel beyond the first stereo pair passes
 /// through at unity pan.
 ///
-/// A muted channel renders silence regardless of its gain — the path a track's
+/// A muted channel renders silence regardless of its gain: the path a track's
 /// mute (or a solo elsewhere silencing it) compiles to. Mute is a live parameter
 /// like gain and pan, so it can be toggled from the control thread or ridden by
 /// automation.
@@ -229,14 +229,14 @@ impl FilterType {
     }
 }
 
-/// A second-order (biquad) filter — the engine's first real effect, and the
+/// A second-order (biquad) filter: the engine's first real effect, and the
 /// building block of every EQ band. One filter section, applied independently to
 /// each channel with [Direct Form I][df1] state, using the standard [RBJ cookbook]
 /// coefficients for its [`FilterType`].
 ///
 /// The coefficients are recomputed off the RT thread in [`prepare`](AudioNode::prepare)
 /// and whenever a parameter changes via `set_param`, so [`process`](AudioNode::process)
-/// is just the difference equation — no `sin`/`cos`, no allocation. Cutoff and Q
+/// is just the difference equation: no `sin`/`cos`, no allocation. Cutoff and Q
 /// are live parameters, so a filter sweep can be automated exactly like a gain.
 ///
 /// [df1]: https://en.wikipedia.org/wiki/Digital_biquad_filter#Direct_form_1
@@ -281,7 +281,7 @@ impl Biquad {
     }
 
     /// Recompute the normalized coefficients from the current type, cutoff, Q and
-    /// sample rate (RBJ cookbook). Control thread / `prepare` only — calls `sin`
+    /// sample rate (RBJ cookbook). Control thread / `prepare` only: calls `sin`
     /// and `cos`. A no-op until a sample rate is known.
     fn recompute_coeffs(&mut self) {
         if self.sample_rate <= 0.0 {

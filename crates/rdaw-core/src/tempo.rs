@@ -2,7 +2,7 @@
 //! than raw frames.
 //!
 //! Frames are what the engine ultimately plays, but they're the wrong unit to
-//! *author* in — a downbeat lands on "bar 5, beat 1", not "frame 441000", and it
+//! *author* in: a downbeat lands on "bar 5, beat 1", not "frame 441000", and it
 //! should stay on that downbeat when you change the tempo. This module is the
 //! bridge: a [`MusicalTime`] plus a [`TimeSignature`] and a tempo convert to a
 //! frame on demand, so the project can store music and the graph can be handed
@@ -59,7 +59,7 @@ impl TimeSignature {
 }
 
 /// A position (or, measured from the origin, a duration) on the musical grid:
-/// `bar`, `beat` within the bar, and `tick` within the beat — all zero-based.
+/// `bar`, `beat` within the bar, and `tick` within the beat: all zero-based.
 ///
 /// It carries no tempo or meter of its own; pair it with a [`TimeSignature`] and
 /// a tempo via [`to_frames`](MusicalTime::to_frames) to land on an actual frame.

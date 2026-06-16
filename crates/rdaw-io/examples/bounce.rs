@@ -1,4 +1,4 @@
-//! Bounce a timeline to a WAV file with no audio device involved — the offline,
+//! Bounce a timeline to a WAV file with no audio device involved: the offline,
 //! end-to-end proof that the core renders arranged audio correctly.
 //!
 //! Run: `cargo run -p rdaw-io --example bounce`

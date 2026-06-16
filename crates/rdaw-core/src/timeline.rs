@@ -20,7 +20,7 @@ pub enum FadeCurve {
     #[default]
     Linear,
     /// A sine/cosine quarter-curve. Two of these, fading out and in over the same
-    /// region, hold constant power across the overlap — the right default for
+    /// region, hold constant power across the overlap: the right default for
     /// crossfading two unrelated clips.
     EqualPower,
 }
@@ -171,7 +171,7 @@ impl Clip {
     }
 
     /// Builder: set how many *timeline* frames the clip occupies. For a resampled
-    /// clip this differs from the source frame count — e.g. a 4-frame source at
+    /// clip this differs from the source frame count: e.g. a 4-frame source at
     /// half the graph rate spans 8 timeline frames.
     pub fn with_len(mut self, len: u64) -> Self {
         self.len = len;
@@ -236,7 +236,7 @@ impl Clip {
 /// It's a source (ignores its input); wire it into a gain or bus downstream.
 ///
 /// Each block it figures out which clips overlap `[sample_pos, sample_pos +
-/// frames)` and sums their audio into the output — so seeking the transport,
+/// frames)` and sums their audio into the output: so seeking the transport,
 /// crossing block boundaries, and overlapping clips all just work.
 ///
 /// A clip whose source was recorded at a different rate than the graph

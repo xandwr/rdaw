@@ -13,7 +13,7 @@ fn dc(value: f32, len: usize) -> Arc<Waveform> {
     Arc::new(Waveform::from_planar(1, vec![value; len]))
 }
 
-/// A mono source that flips between `+amp` and `-amp` every sample — the fastest
+/// A mono source that flips between `+amp` and `-amp` every sample: the fastest
 /// signal representable, sitting right at Nyquist.
 fn nyquist(amp: f32, len: usize) -> Arc<Waveform> {
     let data = (0..len)
@@ -33,7 +33,7 @@ fn filter_dc(filter: Biquad, source: Arc<Waveform>, total: usize) -> Vec<f32> {
     graph.render_offline(48_000.0, total, 64)
 }
 
-/// Sum of squares — a stand-in for signal energy.
+/// Sum of squares: a stand-in for signal energy.
 fn energy(samples: &[f32]) -> f32 {
     samples.iter().map(|s| s * s).sum()
 }

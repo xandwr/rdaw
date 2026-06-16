@@ -23,7 +23,7 @@ fn sine_burst(freq_hz: f64, seconds: f64, amp: f32, sample_rate: f64) -> Wavefor
 
 fn main() -> anyhow::Result<()> {
     // Source: a WAV passed as the first arg, otherwise a synthesized tone. We
-    // keep both the decoded audio and the path it came from — the project stores
+    // keep both the decoded audio and the path it came from: the project stores
     // the path, the graph is fed the decoded samples.
     let (source, sr, source_path) = match std::env::args().nth(1) {
         Some(path) => {
@@ -88,7 +88,7 @@ fn main() -> anyhow::Result<()> {
 
     // Loop the first beat (musically defined) a few times, then drop the loop.
     // The bound is computed from bars/beats via the project, not hand-counted
-    // frames — the same conversion the clips above went through.
+    // frames: the same conversion the clips above went through.
     let loop_end = project.frames_at(MusicalTime::bar_beat(0, 1), sr);
     println!("loop the first beat (frames 0..{loop_end}) a few times...");
     engine.send(Command::Seek { frame: 0 });

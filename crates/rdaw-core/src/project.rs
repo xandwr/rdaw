@@ -1,8 +1,8 @@
 //! The project: the persistent arrangement a session saves to disk and a GUI
 //! binds to.
 //!
-//! Everything in the engine so far has been runtime state — graphs, nodes,
-//! buffers — built up imperatively. A [`Project`] is the other half: a plain,
+//! Everything in the engine so far has been runtime state: graphs, nodes,
+//! buffers: built up imperatively. A [`Project`] is the other half: a plain,
 //! serializable description of *what the music is* (tempo, tracks, where each
 //! clip sits) that knows nothing about buffers or the audio thread. Load one,
 //! call [`Project::build_graph`], and you get a runnable [`Graph`]; the project
@@ -11,7 +11,7 @@
 //! Audio files are referenced, not embedded. The project lists its [`Source`]s
 //! by path and clips point at them by index, so the document stays small and the
 //! PCM lives in its own files. Decoding those paths into [`Waveform`]s is the
-//! caller's job (see `rdaw-io`) — this crate stays free of any codec dependency,
+//! caller's job (see `rdaw-io`): this crate stays free of any codec dependency,
 //! exactly as `lib.rs` promises.
 
 use std::path::Path;
@@ -48,7 +48,7 @@ impl Time {
 }
 
 impl Default for Time {
-    /// Frame zero / zero length — the neutral value for an absent fade.
+    /// Frame zero / zero length: the neutral value for an absent fade.
     fn default() -> Self {
         Time::Frames(0)
     }
@@ -275,7 +275,7 @@ pub enum AutomationTarget {
 
 /// One breakpoint of an automation curve: a value at a point in time. The time
 /// may be a frame count or a musical position, resolved against the project's
-/// tempo and meter when the graph is built — so musical automation follows tempo
+/// tempo and meter when the graph is built: so musical automation follows tempo
 /// just like clip placement does.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AutomationPoint {
@@ -487,7 +487,7 @@ impl Project {
     }
 
     /// Resolve a position or length to frames using this project's tempo and
-    /// meter — handy for computing loop bounds in bars/beats:
+    /// meter: handy for computing loop bounds in bars/beats:
     ///
     /// ```
     /// # use rdaw_core::{MusicalTime, Project};

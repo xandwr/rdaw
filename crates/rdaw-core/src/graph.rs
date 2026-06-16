@@ -20,7 +20,7 @@ pub struct NodeId(usize);
 /// A directed audio graph: nodes wired by connections, evaluated in topological
 /// order. Each node owns one output buffer; a node's input is the sum of every
 /// upstream node's output. This is what lets multiple tracks feed a master bus,
-/// or a send feed a reverb — things a linear chain can't express.
+/// or a send feed a reverb: things a linear chain can't express.
 ///
 /// Topology (add/connect/topo-sort) and all allocation happen on the control
 /// thread. [`process`](Graph::process) is the only RT-thread entry point and
@@ -202,7 +202,7 @@ impl Graph {
 
     /// Offline, non-real-time render: play from frame 0 for `total_frames`,
     /// stepping the transport in `block`-sized chunks exactly as the live host
-    /// would, and return the result interleaved. Allocates — this is for tests
+    /// would, and return the result interleaved. Allocates: this is for tests
     /// and bouncing to disk, never the audio thread. Call
     /// [`prepare`](Graph::prepare) first with `max_block >= block`.
     pub fn render_offline(
@@ -232,7 +232,7 @@ impl Graph {
     }
 
     /// Drive the graph offline through an arbitrary [`Transport`], honoring its
-    /// loop region and (sample-accurate) wrapping — the same path the live host
+    /// loop region and (sample-accurate) wrapping: the same path the live host
     /// uses. Allocates the output buffer; for tests and bouncing only.
     pub fn render_with(
         &mut self,

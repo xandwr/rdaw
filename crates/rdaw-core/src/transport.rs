@@ -49,7 +49,7 @@ impl LoopRegion {
 }
 
 /// The live playback controller. Owns the authoritative play position and the
-/// loop region, and knows how to advance — wrapping at the loop boundary,
+/// loop region, and knows how to advance: wrapping at the loop boundary,
 /// splitting a block when the wrap lands mid-block. Nodes never see this; they
 /// only get the per-segment [`TransportState`] snapshot it hands out, so looping
 /// stays entirely a scheduling concern.

@@ -1,4 +1,4 @@
-//! Minimal, dependency-free WAV I/O — just enough to bounce the engine's
+//! Minimal, dependency-free WAV I/O: just enough to bounce the engine's
 //! output to disk and to load samples back as [`Waveform`]s.
 //!
 //! This crate is deliberately tiny and hand-rolled: a from-scratch DAW shouldn't

@@ -13,7 +13,7 @@ fn ramp(len: usize) -> Arc<Waveform> {
 }
 
 /// A small but fully-populated project: two sources, two tracks with distinct
-/// gain/pan, and a windowed clip — enough to prove every field survives a trip
+/// gain/pan, and a windowed clip: enough to prove every field survives a trip
 /// through JSON.
 fn sample_project() -> Project {
     Project::new(140.0)
@@ -144,7 +144,7 @@ fn clip_with_out_of_range_source_is_skipped() {
 fn musical_clip_resolves_to_frames_via_tempo() {
     // 120 BPM in 4/4. We render at a sample rate of 4 so that one quarter-note
     // beat is exactly 2 frames (sr * 60 / bpm = 4 * 0.5 = 2). Beat 1 of bar 0
-    // then lands at frame 2 — no hand-computed frame numbers in the document.
+    // then lands at frame 2: no hand-computed frame numbers in the document.
     let project = Project::new(120.0).with_track(Track::new("t").with_clip(ClipData::new(
         0,
         MusicalTime::bar_beat(0, 1),

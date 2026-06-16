@@ -35,7 +35,7 @@ fn playback_is_identical_across_block_boundaries() {
     let clip = Clip::new(ramp(4), 2);
     let whole = render_mono(Timeline::new().with_clip(clip.clone()), 8, 8);
     // A block size that slices straight through the clip must produce the same
-    // audio — this is the real test that sample_pos drives positioning.
+    // audio: this is the real test that sample_pos drives positioning.
     let chunked = render_mono(Timeline::new().with_clip(clip), 8, 3);
     assert_eq!(whole, chunked);
 }
@@ -83,7 +83,7 @@ fn loop_repeats_the_region() {
 #[test]
 fn loop_wrap_is_sample_accurate_across_blocks() {
     // The same loop, but with a block size that does NOT divide the loop length,
-    // so blocks straddle the wrap point. Output must be identical — this is the
+    // so blocks straddle the wrap point. Output must be identical: this is the
     // test that the wrap is split mid-block rather than quantized to the block.
     let clip = Clip::new(ramp(2), 0);
     let whole = render_mono_looped(
