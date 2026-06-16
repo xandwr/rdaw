@@ -12,3 +12,4 @@ rtrb = "0.3"
 anyhow = "1"
 rdaw-core = { path = "crates/rdaw-core" }
 rdaw-engine = { path = "crates/rdaw-engine" }
+rdaw-io = { path = "crates/rdaw-io" }

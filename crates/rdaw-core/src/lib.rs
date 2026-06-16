@@ -9,6 +9,7 @@ pub mod buffer;
 pub mod graph;
 pub mod node;
 pub mod nodes;
+pub mod timeline;
 pub mod transport;
 
 /// Sample format used throughout the engine. Planar `f32` internally; the host
@@ -18,4 +19,5 @@ pub type Sample = f32;
 pub use buffer::AudioBuffer;
 pub use graph::{Graph, NodeId};
 pub use node::{AudioNode, ProcessContext};
-pub use transport::TransportState;
+pub use timeline::{Clip, Timeline, Waveform};
+pub use transport::{LoopRegion, Transport, TransportState};

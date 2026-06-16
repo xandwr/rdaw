@@ -491,6 +491,7 @@ dependencies = [
  "anyhow",
  "rdaw-core",
  "rdaw-engine",
+ "rdaw-io",
 ]
 
 [[package]]
@@ -505,6 +506,14 @@ dependencies = [
  "cpal",
  "rdaw-core",
  "rtrb",
+]
+
+[[package]]
+name = "rdaw-io"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rdaw-core",
 ]
 
 [[package]]

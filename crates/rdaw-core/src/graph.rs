@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::buffer::AudioBuffer;
-use crate::{AudioNode, ProcessContext, Sample, TransportState};
+use crate::{AudioNode, LoopRegion, ProcessContext, Sample, Transport, TransportState};
 
 /// Stable handle to a node in the [`Graph`]. Returned by [`Graph::add`] and used
 /// to wire connections and address live parameter changes.
@@ -161,5 +161,64 @@ impl Graph {
             }
             None => interleaved_out.fill(0.0),
         }
+    }
+
+    /// Offline, non-real-time render: play from frame 0 for `total_frames`,
+    /// stepping the transport in `block`-sized chunks exactly as the live host
+    /// would, and return the result interleaved. Allocates — this is for tests
+    /// and bouncing to disk, never the audio thread. Call
+    /// [`prepare`](Graph::prepare) first with `max_block >= block`.
+    pub fn render_offline(
+        &mut self,
+        sample_rate: f64,
+        total_frames: usize,
+        block: usize,
+    ) -> Vec<Sample> {
+        let mut transport = Transport::new(120.0);
+        transport.playing = true;
+        self.render_with(sample_rate, total_frames, block, &mut transport)
+    }
+
+    /// Like [`render_offline`](Graph::render_offline) but with an active loop
+    /// region, so the play head wraps within `loop_region` for the whole render.
+    pub fn render_offline_looped(
+        &mut self,
+        sample_rate: f64,
+        total_frames: usize,
+        block: usize,
+        loop_region: LoopRegion,
+    ) -> Vec<Sample> {
+        let mut transport = Transport::new(120.0);
+        transport.playing = true;
+        transport.set_loop(Some(loop_region));
+        self.render_with(sample_rate, total_frames, block, &mut transport)
+    }
+
+    /// Drive the graph offline through an arbitrary [`Transport`], honoring its
+    /// loop region and (sample-accurate) wrapping — the same path the live host
+    /// uses. Allocates the output buffer; for tests and bouncing only.
+    pub fn render_with(
+        &mut self,
+        sample_rate: f64,
+        total_frames: usize,
+        block: usize,
+        transport: &mut Transport,
+    ) -> Vec<Sample> {
+        let channels = self.channels;
+        let mut out = vec![0.0; total_frames * channels];
+
+        let mut done = 0;
+        while done < total_frames {
+            let n = block.min(total_frames - done);
+            let chunk = &mut out[done * channels..(done + n) * channels];
+            // A single block may be split into several linear segments at the
+            // loop boundary; each renders into its own slice of the chunk.
+            transport.render_block(n, |state, offset, len| {
+                let seg = &mut chunk[offset * channels..(offset + len) * channels];
+                self.process(sample_rate, state, seg);
+            });
+            done += n;
+        }
+        out
     }
 }

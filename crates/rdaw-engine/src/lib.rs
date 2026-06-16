@@ -5,7 +5,7 @@ use anyhow::{Context, Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 
-use rdaw_core::{Graph, NodeId, Sample, TransportState};
+use rdaw_core::{Graph, LoopRegion, NodeId, Sample, Transport};
 
 /// Messages from the control thread to the audio thread. Kept small and
 /// `Copy` so they move through the ring buffer without allocation.
@@ -13,6 +13,14 @@ use rdaw_core::{Graph, NodeId, Sample, TransportState};
 pub enum Command {
     Play,
     Stop,
+    /// Move the play head to an absolute timeline frame. Works whether or not
+    /// transport is playing.
+    Seek { frame: u64 },
+    /// Enable looping over `[start, end)` timeline frames. An empty/invalid
+    /// region clears the loop.
+    SetLoop { start: u64, end: u64 },
+    /// Disable looping; playback continues linearly from the current position.
+    ClearLoop,
     /// Change one parameter of one node live. `param` indices are defined by the
     /// node type (e.g. `SineOsc::FREQ`).
     SetParam { node: NodeId, param: u32, value: f32 },
@@ -29,7 +37,7 @@ const MAX_BLOCK: usize = 8192;
 struct RtProcessor {
     graph: Graph,
     commands: rtrb::Consumer<Command>,
-    transport: TransportState,
+    transport: Transport,
     sample_rate: f64,
     channels: usize,
     /// Pre-allocated interleaved `f32` scratch; converted to `T` per callback.
@@ -42,7 +50,17 @@ impl RtProcessor {
         while let Ok(cmd) = self.commands.pop() {
             match cmd {
                 Command::Play => self.transport.playing = true,
-                Command::Stop => self.transport.playing = false,
+                Command::Stop => {
+                    // Stop returns the play head to the start, like a tape
+                    // transport. Use Seek for pause-in-place semantics.
+                    self.transport.playing = false;
+                    self.transport.set_position(0);
+                }
+                Command::Seek { frame } => self.transport.set_position(frame),
+                Command::SetLoop { start, end } => {
+                    self.transport.set_loop(Some(LoopRegion::new(start, end)))
+                }
+                Command::ClearLoop => self.transport.set_loop(None),
                 Command::SetParam { node, param, value } => {
                     self.graph.set_param(node, param, value)
                 }
@@ -53,9 +71,15 @@ impl RtProcessor {
         let scratch = &mut self.scratch[..frames * self.channels];
 
         if self.transport.playing {
-            self.graph
-                .process(self.sample_rate, self.transport, scratch);
-            self.transport.sample_pos += frames as u64;
+            // Disjoint field borrows so the render closure can hold the graph
+            // while the transport drives segmentation.
+            let graph = &mut self.graph;
+            let sample_rate = self.sample_rate;
+            let channels = self.channels;
+            self.transport.render_block(frames, |state, offset, len| {
+                let seg = &mut scratch[offset * channels..(offset + len) * channels];
+                graph.process(sample_rate, state, seg);
+            });
         } else {
             scratch.fill(0.0);
         }
@@ -105,7 +129,7 @@ impl Engine {
         let mut proc = RtProcessor {
             graph,
             commands: rx,
-            transport: TransportState::default(),
+            transport: Transport::default(),
             sample_rate,
             channels,
             scratch: vec![0.0; MAX_BLOCK * channels],
