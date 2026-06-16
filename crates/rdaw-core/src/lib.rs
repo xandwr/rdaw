@@ -9,6 +9,8 @@ pub mod buffer;
 pub mod graph;
 pub mod node;
 pub mod nodes;
+pub mod project;
+pub mod tempo;
 pub mod timeline;
 pub mod transport;
 
@@ -19,5 +21,7 @@ pub type Sample = f32;
 pub use buffer::AudioBuffer;
 pub use graph::{Graph, NodeId};
 pub use node::{AudioNode, ProcessContext};
+pub use project::{ClipData, Project, Source, Time, Track};
+pub use tempo::{MusicalTime, TimeSignature};
 pub use timeline::{Clip, Timeline, Waveform};
 pub use transport::{LoopRegion, Transport, TransportState};

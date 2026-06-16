@@ -3,9 +3,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
-use rdaw_core::nodes::Gain;
-use rdaw_core::{Clip, Graph, Waveform};
-use rdaw_core::Timeline;
+use rdaw_core::{ClipData, MusicalTime, Project, Track, Waveform};
 use rdaw_engine::{Command, Engine};
 use rdaw_io::read_wav;
 
@@ -24,32 +22,58 @@ fn sine_burst(freq_hz: f64, seconds: f64, amp: f32, sample_rate: f64) -> Wavefor
 }
 
 fn main() -> anyhow::Result<()> {
-    // Source: a WAV passed as the first arg, otherwise a synthesized tone.
-    let (source, sr) = match std::env::args().nth(1) {
+    // Source: a WAV passed as the first arg, otherwise a synthesized tone. We
+    // keep both the decoded audio and the path it came from — the project stores
+    // the path, the graph is fed the decoded samples.
+    let (source, sr, source_path) = match std::env::args().nth(1) {
         Some(path) => {
             let loaded = read_wav(&path)?;
             println!("loaded {path} ({} Hz)", loaded.sample_rate);
-            (loaded.waveform, loaded.sample_rate as f64)
+            (loaded.waveform, loaded.sample_rate as f64, path)
         }
         None => {
             println!("no WAV given; synthesizing a 440 Hz tone");
-            (Arc::new(sine_burst(440.0, 0.5, 0.4, ASSUMED_SR)), ASSUMED_SR)
+            (
+                Arc::new(sine_burst(440.0, 0.5, 0.4, ASSUMED_SR)),
+                ASSUMED_SR,
+                "<synth-440hz>".to_string(),
+            )
         }
     };
 
     let clip_len = source.frames() as u64;
 
-    // timeline (two placements of the source) -> master gain -> device.
-    let timeline = Timeline::new()
-        .with_clip(Clip::new(source.clone(), 0))
-        .with_clip(Clip::new(source, (sr * 0.75) as u64).with_gain(0.5));
+    // Describe the arrangement as a document: one source, two tracks that place
+    // it differently and pan to opposite sides, summing into an 0.8 master. The
+    // "lead" sits at frame 0; the "echo" is placed *musically* on beat 3 of the
+    // first bar (zero-based beat 2), so it tracks the tempo rather than a frame.
+    let mut project = Project::new(120.0); // 4/4 by default
+    project.master_gain = 0.8;
+    let src = project.add_source(&source_path);
+    project.add_track(
+        Track::new("lead")
+            .with_pan(-0.4)
+            .with_clip(ClipData::new(src, 0u64, clip_len)),
+    );
+    project.add_track(
+        Track::new("echo")
+            .with_gain(0.5)
+            .with_pan(0.4)
+            .with_clip(ClipData::new(src, MusicalTime::bar_beat(0, 2), clip_len)),
+    );
 
-    let mut graph = Graph::new(2);
-    let _tl = graph.add(Box::new(timeline));
-    let master = graph.add(Box::new(Gain::new(0.8)));
-    graph.connect(_tl, master);
-    graph.set_master(master);
+    // Round-trip the document through a JSON file to prove it persists.
+    println!("\nproject:\n{}", project.to_json()?);
+    let mut path = std::env::temp_dir();
+    path.push("rdaw_demo_project.json");
+    project.save(&path)?;
+    let project = Project::load(&path)?;
+    println!("saved + reloaded {}\n", path.display());
 
+    // Compile the (reloaded) document into a runnable graph. The decoded source
+    // is supplied in index order; here we have just the one. Musical positions
+    // resolve to frames here using the project's tempo + meter at this rate.
+    let graph = project.build_graph(2, sr, &[source]);
     let mut engine = Engine::new(graph)?;
 
     println!("play from the top...");
@@ -60,9 +84,11 @@ fn main() -> anyhow::Result<()> {
     engine.send(Command::Seek { frame: 0 });
     sleep(Duration::from_millis((clip_len as f64 / sr * 1000.0) as u64));
 
-    // Loop the first half of the source four times, then drop the loop.
-    let loop_end = clip_len / 2;
-    println!("loop frames 0..{loop_end} a few times...");
+    // Loop the first beat (musically defined) a few times, then drop the loop.
+    // The bound is computed from bars/beats via the project, not hand-counted
+    // frames — the same conversion the clips above went through.
+    let loop_end = project.frames_at(MusicalTime::bar_beat(0, 1), sr);
+    println!("loop the first beat (frames 0..{loop_end}) a few times...");
     engine.send(Command::Seek { frame: 0 });
     engine.send(Command::SetLoop {
         start: 0,

@@ -102,3 +102,76 @@ impl AudioNode for Gain {
         }
     }
 }
+
+/// A track channel strip: linear gain followed by a stereo pan. This is the node
+/// a [`Track`](crate::project::Track) compiles down to, sitting between the
+/// track's timeline and the master bus.
+///
+/// Pan is a position in `[-1, 1]` (`-1` hard left, `0` center, `1` hard right)
+/// applied with a constant-power law: the left/right gains trace a quarter
+/// circle, so a sound swept across the field keeps a steady perceived loudness
+/// and sits 3 dB down at center. Pan only touches channels 0 (L) and 1 (R); a
+/// mono bus gets gain alone, and any channel beyond the first stereo pair passes
+/// through at unity pan.
+pub struct Channel {
+    gain: f32,
+    pan: f32,
+}
+
+impl Channel {
+    /// Parameter index: linear gain.
+    pub const GAIN: u32 = 0;
+    /// Parameter index: pan position in `[-1, 1]`.
+    pub const PAN: u32 = 1;
+
+    pub fn new(gain: f32, pan: f32) -> Self {
+        Self {
+            gain,
+            pan: pan.clamp(-1.0, 1.0),
+        }
+    }
+
+    /// The (left, right) constant-power gains for the current pan position.
+    fn pan_gains(&self) -> (f32, f32) {
+        // Map [-1, 1] onto a quarter turn [0, PI/2]; cos/sin then give a pair
+        // whose squares always sum to 1 (constant power), equal at center.
+        let theta = (self.pan + 1.0) * 0.5 * std::f32::consts::FRAC_PI_2;
+        (theta.cos(), theta.sin())
+    }
+}
+
+impl AudioNode for Channel {
+    fn prepare(&mut self, _sample_rate: f64, _max_block: usize) {}
+
+    fn process(&mut self, ctx: &ProcessContext, input: &AudioBuffer, output: &mut AudioBuffer) {
+        let channels = output.channels();
+        let (left, right) = self.pan_gains();
+        for ch in 0..channels {
+            // Pan is only meaningful for a stereo pair; mono and surplus channels
+            // pass through at unity pan so they aren't silently attenuated.
+            let pan = if channels >= 2 {
+                match ch {
+                    0 => left,
+                    1 => right,
+                    _ => 1.0,
+                }
+            } else {
+                1.0
+            };
+            let g = self.gain * pan;
+            let src = &input.channel(ch)[..ctx.frames];
+            let dst = &mut output.channel_mut(ch)[..ctx.frames];
+            for (d, s) in dst.iter_mut().zip(src) {
+                *d = *s * g;
+            }
+        }
+    }
+
+    fn set_param(&mut self, param: u32, value: f32) {
+        match param {
+            Self::GAIN => self.gain = value,
+            Self::PAN => self.pan = value.clamp(-1.0, 1.0),
+            _ => {}
+        }
+    }
+}
