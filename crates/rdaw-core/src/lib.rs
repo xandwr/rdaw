@@ -16,6 +16,6 @@ pub mod transport;
 pub type Sample = f32;
 
 pub use buffer::AudioBuffer;
-pub use graph::Graph;
+pub use graph::{Graph, NodeId};
 pub use node::{AudioNode, ProcessContext};
 pub use transport::TransportState;

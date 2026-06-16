@@ -47,4 +47,17 @@ impl AudioBuffer {
     pub fn clear(&mut self) {
         self.data.fill(0.0);
     }
+
+    /// Accumulate the first `frames` samples of `other` into `self`, channel for
+    /// channel. Used to sum a node's inputs into one bus. RT-safe.
+    pub fn add_from(&mut self, other: &AudioBuffer, frames: usize) {
+        let channels = self.channels.min(other.channels);
+        for ch in 0..channels {
+            let src = &other.channel(ch)[..frames];
+            let dst = &mut self.channel_mut(ch)[..frames];
+            for (d, s) in dst.iter_mut().zip(src) {
+                *d += *s;
+            }
+        }
+    }
 }

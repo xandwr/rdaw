@@ -6,24 +6,43 @@ use rdaw_core::nodes::{Gain, SineOsc};
 use rdaw_engine::{Command, Engine};
 
 fn main() -> anyhow::Result<()> {
-    // Build the graph on the control thread: 440 Hz sine -> gain.
+    // Build the graph on the control thread: osc -> master gain -> device
     let mut graph = Graph::new(2);
-    graph.push(Box::new(SineOsc::new(440.0, 0.5)));
-    graph.push(Box::new(Gain::new(0.25)));
+    let osc = graph.add(Box::new(SineOsc::new(440.0, 0.5)));
+    let master = graph.add(Box::new(Gain::new(0.25)));
+    graph.connect(osc, master);
+    graph.set_master(master);
 
-    // Hand it to the engine; cpal starts pulling immediately.
+    // Hand it to the engine; cpal starts pulling immediately
     let mut engine = Engine::new(graph)?;
-
-    println!("playing 440 Hz for 2s...");
     engine.send(Command::Play);
-    sleep(Duration::from_secs(2));
 
-    // Drop the master gain, then stop.
-    engine.send(Command::SetMasterGain(0.3));
-    sleep(Duration::from_millis(500));
+    println!("440 Hz...");
+    sleep(Duration::from_millis(800));
+
+    println!("sweep up to 880 Hz...");
+    for freq in (440..=880).step_by(5) {
+        engine.send(Command::SetParam {
+            node: osc,
+            param: SineOsc::FREQ,
+            value: freq as f32,
+        });
+        sleep(Duration::from_millis(15));
+    }
+
+    println!("fade out via master gain...");
+    for step in 0..=20 {
+        let g = 0.25 * (1.0 - step as f32 / 20.0);
+        engine.send(Command::SetParam {
+            node: master,
+            param: Gain::GAIN,
+            value: g,
+        });
+        sleep(Duration::from_millis(25));
+    }
+
     engine.send(Command::Stop);
     sleep(Duration::from_millis(100));
-
     println!("done");
     Ok(())
 }

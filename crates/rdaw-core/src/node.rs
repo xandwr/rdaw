@@ -21,7 +21,13 @@ pub trait AudioNode: Send {
     /// Called off the RT thread whenever sample rate or block size changes.
     fn prepare(&mut self, sample_rate: f64, max_block: usize);
 
-    /// Render `ctx.frames` frames into `buffer` (planar). Generators overwrite;
-    /// effects read and write in place. RT-safe.
-    fn process(&mut self, ctx: &ProcessContext, buffer: &mut AudioBuffer);
+    /// Render `ctx.frames` frames. `input` is the summed mix of every upstream
+    /// node (silence for a source); write the result into `output` (planar).
+    /// Generators ignore `input`; effects read it. RT-safe.
+    fn process(&mut self, ctx: &ProcessContext, input: &AudioBuffer, output: &mut AudioBuffer);
+
+    /// Apply a live parameter change addressed by index. Called on the RT thread
+    /// from the command queue, so it must not allocate or block. Parameter
+    /// indices are defined per node type (see the node's associated constants).
+    fn set_param(&mut self, _param: u32, _value: f32) {}
 }

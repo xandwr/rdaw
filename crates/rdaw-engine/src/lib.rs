@@ -5,7 +5,7 @@ use anyhow::{Context, Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 
-use rdaw_core::{Graph, Sample, TransportState};
+use rdaw_core::{Graph, NodeId, Sample, TransportState};
 
 /// Messages from the control thread to the audio thread. Kept small and
 /// `Copy` so they move through the ring buffer without allocation.
@@ -13,7 +13,9 @@ use rdaw_core::{Graph, Sample, TransportState};
 pub enum Command {
     Play,
     Stop,
-    SetMasterGain(f32),
+    /// Change one parameter of one node live. `param` indices are defined by the
+    /// node type (e.g. `SineOsc::FREQ`).
+    SetParam { node: NodeId, param: u32, value: f32 },
 }
 
 /// Capacity of the command ring buffer (messages buffered between audio blocks).
@@ -23,12 +25,11 @@ const COMMAND_CAPACITY: usize = 256;
 const MAX_BLOCK: usize = 8192;
 
 /// Lives entirely on the audio thread. Drains commands, runs the graph,
-/// applies master gain, converts to the device sample type.
+/// converts to the device sample type.
 struct RtProcessor {
     graph: Graph,
     commands: rtrb::Consumer<Command>,
     transport: TransportState,
-    master_gain: f32,
     sample_rate: f64,
     channels: usize,
     /// Pre-allocated interleaved `f32` scratch; converted to `T` per callback.
@@ -42,7 +43,9 @@ impl RtProcessor {
             match cmd {
                 Command::Play => self.transport.playing = true,
                 Command::Stop => self.transport.playing = false,
-                Command::SetMasterGain(g) => self.master_gain = g,
+                Command::SetParam { node, param, value } => {
+                    self.graph.set_param(node, param, value)
+                }
             }
         }
 
@@ -52,9 +55,6 @@ impl RtProcessor {
         if self.transport.playing {
             self.graph
                 .process(self.sample_rate, self.transport, scratch);
-            for s in scratch.iter_mut() {
-                *s *= self.master_gain;
-            }
             self.transport.sample_pos += frames as u64;
         } else {
             scratch.fill(0.0);
@@ -106,7 +106,6 @@ impl Engine {
             graph,
             commands: rx,
             transport: TransportState::default(),
-            master_gain: 1.0,
             sample_rate,
             channels,
             scratch: vec![0.0; MAX_BLOCK * channels],
