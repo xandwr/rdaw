@@ -69,16 +69,16 @@ fn built_graph_places_clips_like_a_hand_wired_timeline() {
     graph.prepare(48_000.0, 512);
     let out = graph.render_offline(48_000.0, 10, 10);
 
-    assert_eq!(
-        out,
-        vec![1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0]
-    );
+    assert_eq!(out, vec![1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0]);
 }
 
 #[test]
 fn track_gain_scales_the_whole_lane() {
-    let project = Project::new(120.0)
-        .with_track(Track::new("t").with_gain(0.5).with_clip(ClipData::new(0, 0, 3)));
+    let project = Project::new(120.0).with_track(
+        Track::new("t")
+            .with_gain(0.5)
+            .with_clip(ClipData::new(0, 0, 3)),
+    );
 
     let sources = vec![ramp(3)];
     let mut graph = project.build_graph(1, 48_000.0, &sources);
@@ -91,8 +91,11 @@ fn track_gain_scales_the_whole_lane() {
 #[test]
 fn hard_pan_routes_a_mono_track_to_one_side() {
     // A mono ramp panned hard left should appear only on L of the stereo bus.
-    let project = Project::new(120.0)
-        .with_track(Track::new("left").with_pan(-1.0).with_clip(ClipData::new(0, 0, 2)));
+    let project = Project::new(120.0).with_track(
+        Track::new("left")
+            .with_pan(-1.0)
+            .with_clip(ClipData::new(0, 0, 2)),
+    );
 
     let sources = vec![ramp(2)];
     let mut graph = project.build_graph(2, 48_000.0, &sources);
@@ -107,8 +110,8 @@ fn hard_pan_routes_a_mono_track_to_one_side() {
 fn center_pan_is_constant_power() {
     // Centered, both sides should carry the source at the -3 dB constant-power
     // level (1/sqrt(2)), so the two channels stay equal and ~0.707 of the input.
-    let project = Project::new(120.0)
-        .with_track(Track::new("center").with_clip(ClipData::new(0, 0, 1)));
+    let project =
+        Project::new(120.0).with_track(Track::new("center").with_clip(ClipData::new(0, 0, 1)));
 
     let sources = vec![ramp(1)]; // single sample of value 1.0
     let mut graph = project.build_graph(2, 48_000.0, &sources);
@@ -142,8 +145,11 @@ fn musical_clip_resolves_to_frames_via_tempo() {
     // 120 BPM in 4/4. We render at a sample rate of 4 so that one quarter-note
     // beat is exactly 2 frames (sr * 60 / bpm = 4 * 0.5 = 2). Beat 1 of bar 0
     // then lands at frame 2 — no hand-computed frame numbers in the document.
-    let project = Project::new(120.0)
-        .with_track(Track::new("t").with_clip(ClipData::new(0, MusicalTime::bar_beat(0, 1), 4u64)));
+    let project = Project::new(120.0).with_track(Track::new("t").with_clip(ClipData::new(
+        0,
+        MusicalTime::bar_beat(0, 1),
+        4u64,
+    )));
 
     let sources = vec![ramp(4)];
     let mut graph = project.build_graph(1, 4.0, &sources);
@@ -160,7 +166,10 @@ fn doubling_the_tempo_halves_a_musical_position() {
     let fast = Project::new(240.0);
     let pos = MusicalTime::bars(1);
     // Same bar, twice the tempo => the downbeat arrives in half the frames.
-    assert_eq!(fast.frames_at(pos, 44_100.0) * 2, slow.frames_at(pos, 44_100.0));
+    assert_eq!(
+        fast.frames_at(pos, 44_100.0) * 2,
+        slow.frames_at(pos, 44_100.0)
+    );
 }
 
 #[test]

@@ -22,7 +22,10 @@ fn bars_to_frames_in_four_four() {
     let sig = TimeSignature::new(4, 4);
     assert_eq!(MusicalTime::bars(0).to_frames(sig, 120.0, 44_100.0), 0);
     assert_eq!(MusicalTime::bars(1).to_frames(sig, 120.0, 44_100.0), 88_200);
-    assert_eq!(MusicalTime::bars(2).to_frames(sig, 120.0, 44_100.0), 176_400);
+    assert_eq!(
+        MusicalTime::bars(2).to_frames(sig, 120.0, 44_100.0),
+        176_400
+    );
 }
 
 #[test]

@@ -82,7 +82,9 @@ fn main() -> anyhow::Result<()> {
 
     println!("seek back to the first clip and replay it...");
     engine.send(Command::Seek { frame: 0 });
-    sleep(Duration::from_millis((clip_len as f64 / sr * 1000.0) as u64));
+    sleep(Duration::from_millis(
+        (clip_len as f64 / sr * 1000.0) as u64,
+    ));
 
     // Loop the first beat (musically defined) a few times, then drop the loop.
     // The bound is computed from bars/beats via the project, not hand-counted

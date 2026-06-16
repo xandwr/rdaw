@@ -86,7 +86,12 @@ fn loop_wrap_is_sample_accurate_across_blocks() {
     // so blocks straddle the wrap point. Output must be identical — this is the
     // test that the wrap is split mid-block rather than quantized to the block.
     let clip = Clip::new(ramp(2), 0);
-    let whole = render_mono_looped(Timeline::new().with_clip(clip.clone()), 6, 6, LoopRegion::new(0, 2));
+    let whole = render_mono_looped(
+        Timeline::new().with_clip(clip.clone()),
+        6,
+        6,
+        LoopRegion::new(0, 2),
+    );
     let chunked = render_mono_looped(Timeline::new().with_clip(clip), 6, 4, LoopRegion::new(0, 2));
     assert_eq!(whole, chunked);
 }
@@ -112,10 +117,7 @@ fn transport_splits_a_block_at_the_loop_boundary() {
     });
 
     // 5 frames over a 2-frame loop: [0..2], [0..2], [0..1].
-    assert_eq!(
-        segments,
-        vec![(0, 0, 2), (0, 2, 2), (0, 4, 1)]
-    );
+    assert_eq!(segments, vec![(0, 0, 2), (0, 2, 2), (0, 4, 1)]);
     // And the play head ends inside the loop, ready for the next block.
     assert_eq!(transport.position(), 1);
 }

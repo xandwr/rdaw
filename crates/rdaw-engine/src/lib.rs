@@ -15,15 +15,24 @@ pub enum Command {
     Stop,
     /// Move the play head to an absolute timeline frame. Works whether or not
     /// transport is playing.
-    Seek { frame: u64 },
+    Seek {
+        frame: u64,
+    },
     /// Enable looping over `[start, end)` timeline frames. An empty/invalid
     /// region clears the loop.
-    SetLoop { start: u64, end: u64 },
+    SetLoop {
+        start: u64,
+        end: u64,
+    },
     /// Disable looping; playback continues linearly from the current position.
     ClearLoop,
     /// Change one parameter of one node live. `param` indices are defined by the
     /// node type (e.g. `SineOsc::FREQ`).
-    SetParam { node: NodeId, param: u32, value: f32 },
+    SetParam {
+        node: NodeId,
+        param: u32,
+        value: f32,
+    },
 }
 
 /// Capacity of the command ring buffer (messages buffered between audio blocks).
