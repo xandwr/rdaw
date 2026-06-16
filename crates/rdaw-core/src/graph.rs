@@ -1,7 +1,16 @@
 use std::collections::VecDeque;
 
+use crate::automation::Envelope;
 use crate::buffer::AudioBuffer;
 use crate::{AudioNode, LoopRegion, ProcessContext, Sample, Transport, TransportState};
+
+/// Binds an [`Envelope`] to one parameter of one node. Evaluated each block at
+/// the play position and applied through the node's `set_param`.
+struct AutomationLane {
+    node: NodeId,
+    param: u32,
+    envelope: Envelope,
+}
 
 /// Stable handle to a node in the [`Graph`]. Returned by [`Graph::add`] and used
 /// to wire connections and address live parameter changes.
@@ -29,6 +38,8 @@ pub struct Graph {
     input_bus: AudioBuffer,
     /// The node whose output is sent to the device.
     master: Option<NodeId>,
+    /// Parameter automation, evaluated at the start of every processed block.
+    automation: Vec<AutomationLane>,
 }
 
 impl Graph {
@@ -41,6 +52,7 @@ impl Graph {
             order: Vec::new(),
             input_bus: AudioBuffer::new(channels, 0),
             master: None,
+            automation: Vec::new(),
         }
     }
 
@@ -60,6 +72,19 @@ impl Graph {
     /// Choose the node whose output is streamed to the device. Control thread only.
     pub fn set_master(&mut self, node: NodeId) {
         self.master = Some(node);
+    }
+
+    /// Drive `param` of `node` from `envelope` as the transport plays. The
+    /// envelope is sampled at the start of every block and applied through the
+    /// node's `set_param`, so it rides whatever the parameter does manually.
+    /// Control thread only. Multiple lanes may target the same parameter; they
+    /// are applied in registration order (the last one wins for that block).
+    pub fn automate(&mut self, node: NodeId, param: u32, envelope: Envelope) {
+        self.automation.push(AutomationLane {
+            node,
+            param,
+            envelope,
+        });
     }
 
     pub fn channels(&self) -> usize {
@@ -128,6 +153,18 @@ impl Graph {
             frames,
             transport,
         };
+
+        // Apply parameter automation for this block before any node runs. Indexed
+        // so the immutable lane borrow is dropped before the mutable node borrow.
+        for li in 0..self.automation.len() {
+            let lane = &self.automation[li];
+            if let Some(value) = lane.envelope.value_at(transport.sample_pos) {
+                let (node, param) = (lane.node, lane.param);
+                if let Some(n) = self.nodes.get_mut(node.0) {
+                    n.set_param(param, value);
+                }
+            }
+        }
 
         // Evaluate nodes in dependency order. Each is processed exactly once and
         // only after its upstreams, so reading their outputs here is sound.

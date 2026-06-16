@@ -113,7 +113,10 @@ pub fn read_wav(path: impl AsRef<std::path::Path>) -> Result<LoadedWav> {
     };
 
     Ok(LoadedWav {
-        waveform: Arc::new(Waveform::from_interleaved(channels as usize, &interleaved)),
+        waveform: Arc::new(
+            Waveform::from_interleaved(channels as usize, &interleaved)
+                .with_sample_rate(sample_rate as f64),
+        ),
         sample_rate,
     })
 }

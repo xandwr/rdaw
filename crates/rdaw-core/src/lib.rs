@@ -5,6 +5,7 @@
 //! can be driven from a test or an offline renderer. The real-time host lives
 //! in `rdaw-engine`.
 
+pub mod automation;
 pub mod buffer;
 pub mod graph;
 pub mod node;
@@ -18,10 +19,11 @@ pub mod transport;
 /// converts to whatever the device wants at the very edge.
 pub type Sample = f32;
 
+pub use automation::{Envelope, Interp};
 pub use buffer::AudioBuffer;
 pub use graph::{Graph, NodeId};
 pub use node::{AudioNode, ProcessContext};
-pub use project::{ClipData, Project, Source, Time, Track};
+pub use project::{AutomationLane, AutomationTarget, ClipData, Project, Source, Time, Track};
 pub use tempo::{MusicalTime, TimeSignature};
-pub use timeline::{Clip, Timeline, Waveform};
+pub use timeline::{Clip, FadeCurve, Timeline, Waveform};
 pub use transport::{LoopRegion, Transport, TransportState};

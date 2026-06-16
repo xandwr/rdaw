@@ -19,9 +19,11 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::automation::{Envelope, Interp};
 use crate::nodes::{Channel, Gain};
 use crate::tempo::{MusicalTime, TimeSignature};
-use crate::{Clip, Graph, Timeline, Waveform};
+use crate::timeline::FadeCurve;
+use crate::{Clip, Graph, NodeId, Timeline, Waveform};
 
 /// A point on (or, from the origin, a span of) the timeline, authored either as
 /// a raw frame count or musically as bars/beats. Musical values are resolved to
@@ -42,6 +44,13 @@ impl Time {
             Time::Frames(f) => f,
             Time::Musical(m) => m.to_frames(sig, bpm, sample_rate),
         }
+    }
+}
+
+impl Default for Time {
+    /// Frame zero / zero length — the neutral value for an absent fade.
+    fn default() -> Self {
+        Time::Frames(0)
     }
 }
 
@@ -87,6 +96,16 @@ pub struct ClipData {
     pub len: Time,
     /// Linear gain applied to this clip's contribution.
     pub gain: f32,
+    /// Fade-in length (frames or a musical duration). Defaulted so projects
+    /// saved before fades existed still load.
+    #[serde(default)]
+    pub fade_in: Time,
+    /// Fade-out length (frames or a musical duration).
+    #[serde(default)]
+    pub fade_out: Time,
+    /// The curve both fades follow.
+    #[serde(default)]
+    pub fade_curve: FadeCurve,
 }
 
 impl ClipData {
@@ -108,6 +127,9 @@ impl ClipData {
             source_offset: 0,
             len: len.into(),
             gain: 1.0,
+            fade_in: Time::default(),
+            fade_out: Time::default(),
+            fade_curve: FadeCurve::default(),
         }
     }
 
@@ -122,6 +144,24 @@ impl ClipData {
     /// Builder: scale this clip's level.
     pub fn with_gain(mut self, gain: f32) -> Self {
         self.gain = gain;
+        self
+    }
+
+    /// Builder: fade in over `len` (frames or a musical duration).
+    pub fn with_fade_in(mut self, len: impl Into<Time>) -> Self {
+        self.fade_in = len.into();
+        self
+    }
+
+    /// Builder: fade out over `len` (frames or a musical duration).
+    pub fn with_fade_out(mut self, len: impl Into<Time>) -> Self {
+        self.fade_out = len.into();
+        self
+    }
+
+    /// Builder: set the curve both fades follow.
+    pub fn with_fade_curve(mut self, curve: FadeCurve) -> Self {
+        self.fade_curve = curve;
         self
     }
 
@@ -142,6 +182,9 @@ impl ClipData {
             source_offset: self.source_offset,
             len: self.len.to_frames(sig, bpm, sample_rate),
             gain: self.gain,
+            fade_in: self.fade_in.to_frames(sig, bpm, sample_rate),
+            fade_out: self.fade_out.to_frames(sig, bpm, sample_rate),
+            fade_curve: self.fade_curve,
         })
     }
 }
@@ -193,6 +236,76 @@ impl Track {
     }
 }
 
+/// Which parameter an [`AutomationLane`] rides. Expressed in document terms
+/// (track indices, the master bus) rather than graph node handles, since the
+/// nodes don't exist until [`build_graph`](Project::build_graph) resolves them.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AutomationTarget {
+    /// Linear gain of the track at this index.
+    TrackGain(usize),
+    /// Pan position (`[-1, 1]`) of the track at this index.
+    TrackPan(usize),
+    /// Linear gain of the master bus.
+    MasterGain,
+}
+
+/// One breakpoint of an automation curve: a value at a point in time. The time
+/// may be a frame count or a musical position, resolved against the project's
+/// tempo and meter when the graph is built — so musical automation follows tempo
+/// just like clip placement does.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AutomationPoint {
+    pub time: Time,
+    pub value: f32,
+}
+
+impl AutomationPoint {
+    pub fn new(time: impl Into<Time>, value: f32) -> Self {
+        Self {
+            time: time.into(),
+            value,
+        }
+    }
+}
+
+/// The serializable twin of a graph automation lane: a target parameter, an
+/// interpolation mode, and the breakpoints that shape it. Compiled to a runtime
+/// [`Envelope`] bound to the resolved node in [`build_graph`](Project::build_graph).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AutomationLane {
+    pub target: AutomationTarget,
+    pub interp: Interp,
+    pub points: Vec<AutomationPoint>,
+}
+
+impl AutomationLane {
+    /// A new, empty lane targeting `target` with the given interpolation.
+    pub fn new(target: AutomationTarget, interp: Interp) -> Self {
+        Self {
+            target,
+            interp,
+            points: Vec::new(),
+        }
+    }
+
+    /// Builder: add a breakpoint. Time accepts a frame count or [`MusicalTime`].
+    pub fn with_point(mut self, time: impl Into<Time>, value: f32) -> Self {
+        self.points.push(AutomationPoint::new(time, value));
+        self
+    }
+
+    /// Resolve to a runtime [`Envelope`], converting each breakpoint's time to a
+    /// frame under the project's meter, tempo, and the device sample rate.
+    fn to_envelope(&self, sig: TimeSignature, bpm: f64, sample_rate: f64) -> Envelope {
+        Envelope::from_points(
+            self.interp,
+            self.points
+                .iter()
+                .map(|p| (p.time.to_frames(sig, bpm, sample_rate), p.value)),
+        )
+    }
+}
+
 /// A whole arrangement: tempo, the audio it references, its tracks, and the
 /// master level. This is the unit that gets saved and loaded.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -207,6 +320,10 @@ pub struct Project {
     /// The audio files this project references; clips point in here by index.
     pub sources: Vec<Source>,
     pub tracks: Vec<Track>,
+    /// Parameter automation over the arrangement. Defaulted when absent so
+    /// projects saved before automation existed still load.
+    #[serde(default)]
+    pub automation: Vec<AutomationLane>,
 }
 
 impl Default for Project {
@@ -217,6 +334,7 @@ impl Default for Project {
             master_gain: 1.0,
             sources: Vec::new(),
             tracks: Vec::new(),
+            automation: Vec::new(),
         }
     }
 }
@@ -256,6 +374,17 @@ impl Project {
         self.tracks.push(track);
     }
 
+    /// Builder: append an automation lane.
+    pub fn with_automation(mut self, lane: AutomationLane) -> Self {
+        self.automation.push(lane);
+        self
+    }
+
+    /// Add an automation lane. Control-side only.
+    pub fn add_automation(&mut self, lane: AutomationLane) {
+        self.automation.push(lane);
+    }
+
     /// Compile this project into a runnable [`Graph`].
     ///
     /// `sources` must be the project's [`Project::sources`] already decoded to
@@ -286,6 +415,9 @@ impl Project {
         let master = graph.add(Box::new(Gain::new(self.master_gain)));
         graph.set_master(master);
 
+        // The channel-strip node per track, in track order, so automation lanes
+        // can address a track by its index.
+        let mut strips: Vec<NodeId> = Vec::with_capacity(self.tracks.len());
         for track in &self.tracks {
             let mut timeline = Timeline::new();
             for clip in &track.clips {
@@ -298,6 +430,25 @@ impl Project {
             let strip = graph.add(Box::new(Channel::new(track.gain, track.pan)));
             graph.connect(tl, strip);
             graph.connect(strip, master);
+            strips.push(strip);
+        }
+
+        // Resolve each automation lane to a concrete node + parameter and attach
+        // it. A lane naming a missing track is skipped, mirroring how a clip with
+        // a bad source index is dropped.
+        for lane in &self.automation {
+            let (node, param) = match lane.target {
+                AutomationTarget::TrackGain(i) => match strips.get(i) {
+                    Some(&strip) => (strip, Channel::GAIN),
+                    None => continue,
+                },
+                AutomationTarget::TrackPan(i) => match strips.get(i) {
+                    Some(&strip) => (strip, Channel::PAN),
+                    None => continue,
+                },
+                AutomationTarget::MasterGain => (master, Gain::GAIN),
+            };
+            graph.automate(node, param, lane.to_envelope(sig, bpm, sample_rate));
         }
 
         graph
