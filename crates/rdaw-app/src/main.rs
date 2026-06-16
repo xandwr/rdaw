@@ -6,19 +6,15 @@ use rdaw_core::nodes::{Gain, SineOsc};
 use rdaw_engine::{Command, Engine};
 
 fn main() -> anyhow::Result<()> {
-    // Build the graph on the control thread: osc -> master gain -> device
+    // graph: osc -> master gain -> device
     let mut graph = Graph::new(2);
     let osc = graph.add(Box::new(SineOsc::new(440.0, 0.5)));
     let master = graph.add(Box::new(Gain::new(0.25)));
     graph.connect(osc, master);
     graph.set_master(master);
 
-    // Hand it to the engine; cpal starts pulling immediately
     let mut engine = Engine::new(graph)?;
     engine.send(Command::Play);
-
-    println!("440 Hz...");
-    sleep(Duration::from_millis(800));
 
     println!("sweep up to 880 Hz...");
     for freq in (440..=880).step_by(5) {
