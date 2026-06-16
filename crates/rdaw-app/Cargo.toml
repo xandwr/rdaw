@@ -1,0 +1,9 @@
+[package]
+name = "rdaw-app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rdaw-core.workspace = true
+rdaw-engine.workspace = true
+anyhow.workspace = true

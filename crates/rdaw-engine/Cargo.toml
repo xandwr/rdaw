@@ -1,0 +1,10 @@
+[package]
+name = "rdaw-engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rdaw-core.workspace = true
+cpal.workspace = true
+rtrb.workspace = true
+anyhow.workspace = true

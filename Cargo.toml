@@ -1,0 +1,14 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+cpal = "0.18.1"
+rtrb = "0.3"
+anyhow = "1"
+rdaw-core = { path = "crates/rdaw-core" }
+rdaw-engine = { path = "crates/rdaw-engine" }

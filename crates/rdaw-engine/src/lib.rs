@@ -1,0 +1,152 @@
+//! Real-time host. Owns the cpal output stream and the audio callback, and
+//! exposes a lock-free channel for the control thread to drive playback.
+
+use anyhow::{Context, Result, anyhow};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{FromSample, SizedSample};
+
+use rdaw_core::{Graph, Sample, TransportState};
+
+/// Messages from the control thread to the audio thread. Kept small and
+/// `Copy` so they move through the ring buffer without allocation.
+#[derive(Clone, Copy, Debug)]
+pub enum Command {
+    Play,
+    Stop,
+    SetMasterGain(f32),
+}
+
+/// Capacity of the command ring buffer (messages buffered between audio blocks).
+const COMMAND_CAPACITY: usize = 256;
+/// Generous upper bound on frames-per-callback. cpal may pick a smaller block;
+/// we never render more than this without reallocating.
+const MAX_BLOCK: usize = 8192;
+
+/// Lives entirely on the audio thread. Drains commands, runs the graph,
+/// applies master gain, converts to the device sample type.
+struct RtProcessor {
+    graph: Graph,
+    commands: rtrb::Consumer<Command>,
+    transport: TransportState,
+    master_gain: f32,
+    sample_rate: f64,
+    channels: usize,
+    /// Pre-allocated interleaved `f32` scratch; converted to `T` per callback.
+    scratch: Vec<Sample>,
+}
+
+impl RtProcessor {
+    fn render<T: SizedSample + FromSample<Sample>>(&mut self, output: &mut [T]) {
+        // 1. Apply any pending control changes. Lock-free pop, bounded work.
+        while let Ok(cmd) = self.commands.pop() {
+            match cmd {
+                Command::Play => self.transport.playing = true,
+                Command::Stop => self.transport.playing = false,
+                Command::SetMasterGain(g) => self.master_gain = g,
+            }
+        }
+
+        let frames = output.len() / self.channels;
+        let scratch = &mut self.scratch[..frames * self.channels];
+
+        if self.transport.playing {
+            self.graph
+                .process(self.sample_rate, self.transport, scratch);
+            for s in scratch.iter_mut() {
+                *s *= self.master_gain;
+            }
+            self.transport.sample_pos += frames as u64;
+        } else {
+            scratch.fill(0.0);
+        }
+
+        // 2. Convert to the device's native sample format at the edge.
+        for (dst, &src) in output.iter_mut().zip(scratch.iter()) {
+            *dst = T::from_sample(src);
+        }
+    }
+}
+
+/// Handle to a running audio engine. Dropping it stops the stream.
+pub struct Engine {
+    _stream: cpal::Stream,
+    commands: rtrb::Producer<Command>,
+}
+
+impl Engine {
+    /// Open the default output device and start streaming `graph`.
+    pub fn new(graph: Graph) -> Result<Self> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .ok_or_else(|| anyhow!("no default output device"))?;
+        let supported = device
+            .default_output_config()
+            .context("querying default output config")?;
+
+        let sample_format = supported.sample_format();
+        let config: cpal::StreamConfig = supported.into();
+        let channels = config.channels as usize;
+        let sample_rate = config.sample_rate as f64;
+
+        if graph.channels() != channels {
+            return Err(anyhow!(
+                "graph has {} channels but device wants {}",
+                graph.channels(),
+                channels
+            ));
+        }
+
+        let (tx, rx) = rtrb::RingBuffer::<Command>::new(COMMAND_CAPACITY);
+
+        let mut graph = graph;
+        graph.prepare(sample_rate, MAX_BLOCK);
+
+        let mut proc = RtProcessor {
+            graph,
+            commands: rx,
+            transport: TransportState::default(),
+            master_gain: 1.0,
+            sample_rate,
+            channels,
+            scratch: vec![0.0; MAX_BLOCK * channels],
+        };
+
+        let err_fn = |e| eprintln!("audio stream error: {e}");
+        let stream = match sample_format {
+            cpal::SampleFormat::F32 => device.build_output_stream(
+                config,
+                move |out: &mut [f32], _| proc.render(out),
+                err_fn,
+                None,
+            ),
+            cpal::SampleFormat::I16 => device.build_output_stream(
+                config,
+                move |out: &mut [i16], _| proc.render(out),
+                err_fn,
+                None,
+            ),
+            cpal::SampleFormat::U16 => device.build_output_stream(
+                config,
+                move |out: &mut [u16], _| proc.render(out),
+                err_fn,
+                None,
+            ),
+            other => return Err(anyhow!("unsupported sample format: {other:?}")),
+        }
+        .context("building output stream")?;
+
+        stream.play().context("starting stream")?;
+
+        Ok(Self {
+            _stream: stream,
+            commands: tx,
+        })
+    }
+
+    /// Send a command to the audio thread. Non-blocking; drops the command if
+    /// the ring buffer is full (the control thread must not stall on audio).
+    pub fn send(&mut self, cmd: Command) {
+        let _ = self.commands.push(cmd);
+    }
+}
