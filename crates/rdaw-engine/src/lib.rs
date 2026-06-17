@@ -1,6 +1,9 @@
 //! Real-time host. Owns the cpal output stream and the audio callback, and
 //! exposes a lock-free channel for the control thread to drive playback.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use anyhow::{Context, Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
@@ -13,6 +16,9 @@ use rdaw_core::{Graph, LoopRegion, NodeId, Sample, Transport};
 pub enum Command {
     Play,
     Stop,
+    /// Halt playback without moving the play head. Unlike [`Command::Stop`],
+    /// which rewinds to the start like a tape transport, this is pause-in-place.
+    Pause,
     /// Move the play head to an absolute timeline frame. Works whether or not
     /// transport is playing.
     Seek {
@@ -51,6 +57,9 @@ struct RtProcessor {
     channels: usize,
     /// Pre-allocated interleaved `f32` scratch; converted to `T` per callback.
     scratch: Vec<Sample>,
+    /// Published play-head position for the control/UI thread to poll. Written
+    /// once per callback with a single relaxed store; never read on this thread.
+    playhead: Arc<AtomicU64>,
 }
 
 impl RtProcessor {
@@ -65,6 +74,7 @@ impl RtProcessor {
                     self.transport.playing = false;
                     self.transport.set_position(0);
                 }
+                Command::Pause => self.transport.playing = false,
                 Command::Seek { frame } => self.transport.set_position(frame),
                 Command::SetLoop { start, end } => {
                     self.transport.set_loop(Some(LoopRegion::new(start, end)))
@@ -97,6 +107,11 @@ impl RtProcessor {
         for (dst, &src) in output.iter_mut().zip(scratch.iter()) {
             *dst = T::from_sample(src);
         }
+
+        // 3. Publish the play head for the UI to poll. Relaxed is fine: this is a
+        // monotonic display value, not a synchronization point.
+        self.playhead
+            .store(self.transport.position(), Ordering::Relaxed);
     }
 }
 
@@ -104,6 +119,8 @@ impl RtProcessor {
 pub struct Engine {
     _stream: cpal::Stream,
     commands: rtrb::Producer<Command>,
+    /// Shared with the audio thread; read with [`Engine::playhead`].
+    playhead: Arc<AtomicU64>,
 }
 
 impl Engine {
@@ -135,6 +152,8 @@ impl Engine {
         let mut graph = graph;
         graph.prepare(sample_rate, MAX_BLOCK);
 
+        let playhead = Arc::new(AtomicU64::new(0));
+
         let mut proc = RtProcessor {
             graph,
             commands: rx,
@@ -142,6 +161,7 @@ impl Engine {
             sample_rate,
             channels,
             scratch: vec![0.0; MAX_BLOCK * channels],
+            playhead: Arc::clone(&playhead),
         };
 
         let err_fn = |e| eprintln!("audio stream error: {e}");
@@ -173,6 +193,7 @@ impl Engine {
         Ok(Self {
             _stream: stream,
             commands: tx,
+            playhead,
         })
     }
 
@@ -180,5 +201,13 @@ impl Engine {
     /// the ring buffer is full (the control thread must not stall on audio).
     pub fn send(&mut self, cmd: Command) {
         let _ = self.commands.push(cmd);
+    }
+
+    /// Current play-head position in timeline frames, as last published by the
+    /// audio thread. Lock-free; poll this each UI frame to draw the play head.
+    /// Lags real output by at most one callback (a few ms), which is below the
+    /// threshold of visible drift for a timeline cursor.
+    pub fn playhead(&self) -> u64 {
+        self.playhead.load(Ordering::Relaxed)
     }
 }
