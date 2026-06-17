@@ -1,12 +1,12 @@
 //! egui front-end for the DAW. Splits into:
 //!
-//! - [`app`] — the [`app::DawApp`] state and top-level layout/dispatch.
-//! - [`transport`] — the play/pause/stop/zoom bar.
-//! - [`timeline`] — the clip timeline widget (draw + scrub).
-//! - [`demo`] — a stand-in audio source and demo arrangement, isolated here so
+//! - [`app`]: the [`app::DawApp`] state and top-level layout/dispatch.
+//! - [`transport`]: the play/pause/stop/zoom bar.
+//! - [`timeline`]: the clip timeline widget (draw + scrub).
+//! - [`demo`]: a stand-in audio source and demo arrangement, isolated here so
 //!   it's easy to delete once real file loading lands.
 //!
-//! The audio side is unchanged — this only *drives* the existing engine and
+//! The audio side is unchanged: this only *drives* the existing engine and
 //! *reads back* its play position.
 
 pub mod app;

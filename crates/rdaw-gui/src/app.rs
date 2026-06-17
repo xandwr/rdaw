@@ -11,7 +11,7 @@ use rdaw_engine::{Command, Engine};
 use crate::{demo, timeline, transport, SR};
 
 pub struct DawApp {
-    /// The arrangement document — source of truth on the UI side.
+    /// The arrangement document: source of truth on the UI side.
     pub project: Project,
     /// Decoded sources, indexed the same as `project.sources`. Held here so the
     /// next step (rebuild-on-edit) can re-`build_graph` after a clip change.
@@ -21,7 +21,7 @@ pub struct DawApp {
     pub engine: Option<Engine>,
     /// Last error surfaced to the user (device open, etc.).
     pub error: Option<String>,
-    /// Whether we *think* we're playing — drives the button label and repaint.
+    /// Whether we *think* we're playing: drives the button label and repaint.
     /// The engine is authoritative for position; this is just UI intent.
     pub playing: bool,
     /// Horizontal zoom: pixels per second of timeline.

@@ -83,7 +83,7 @@ pub fn draw(app: &mut DawApp, ui: &mut egui::Ui) {
         }
     }
 
-    // Click/drag scrubs the play head — but only when the gesture *starts*
+    // Click/drag scrubs the play head: but only when the gesture *starts*
     // in the ruler band. Pressing in the clip area does nothing (that space
     // is reserved for selecting/dragging clips). We gate on `press_origin`
     // (latched where the drag began) so a scrub started on the ruler keeps

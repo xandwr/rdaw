@@ -1,5 +1,5 @@
 //! Stand-in audio source and demo arrangement. Everything here is temporary
-//! scaffolding until real file loading is wired in — keeping it in one module
+//! scaffolding until real file loading is wired in: keeping it in one module
 //! makes it easy to delete wholesale at that point.
 
 use std::f64::consts::TAU;
@@ -9,7 +9,7 @@ use rdaw_core::{ClipData, Project, Track, Waveform};
 
 use crate::SR;
 
-/// A mono sine burst — a stand-in audio source until file loading is wired in.
+/// A mono sine burst: a stand-in audio source until file loading is wired in.
 pub fn sine_burst(freq_hz: f64, seconds: f64, amp: f32) -> Waveform {
     let frames = (seconds * SR) as usize;
     let inc = TAU * freq_hz / SR;
