@@ -3,6 +3,14 @@ name = "rdaw-gui"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+name = "rdaw_gui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rdaw-gui"
+path = "src/main.rs"
+
 [dependencies]
 rdaw-core.workspace = true
 rdaw-engine.workspace = true
